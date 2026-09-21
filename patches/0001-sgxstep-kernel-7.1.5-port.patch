@@ -1,0 +1,37 @@
+diff --git a/kernel/sgxstep.c b/kernel/sgxstep.c
+index 86ee727..d293e12 100644
+--- a/kernel/sgxstep.c
++++ b/kernel/sgxstep.c
+@@ -35,6 +35,7 @@
+ #include <linux/mm.h>
+ #include <linux/highmem.h>
+ #include <linux/slab.h>
++#include <linux/vmalloc.h>
+ 
+ #include <linux/clockchips.h>
+ #include <linux/version.h>
+@@ -425,7 +426,7 @@ static struct kretprobe krp = {
+     .maxactive = 20 /* Probe up to 20 instances concurrently. */
+ };
+ 
+-int init_module(void)
++static int __init sgxstep_init(void)
+ {
+     /* Register virtual device */
+     if (misc_register(&step_dev))
+@@ -448,7 +449,7 @@ int init_module(void)
+     return 0;
+ }
+ 
+-void cleanup_module(void)
++static void __exit sgxstep_exit(void)
+ {
+     /* Unregister virtual device */
+     if (step_dev.this_device)
+@@ -457,3 +458,6 @@ void cleanup_module(void)
+     unregister_kretprobe(&krp);
+     log("kernel module unloaded");
+ }
++
++module_init(sgxstep_init);
++module_exit(sgxstep_exit);

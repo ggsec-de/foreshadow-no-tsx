@@ -1,0 +1,137 @@
+Reproducing Foreshadow without TSX on an i3-6100
+=================================================
+
+Context
+-------
+
+We keep an old Fujitsu with an Intel i3-6100 (Skylake, 2c/4t) around as a
+deliberately-vulnerable lab box. It runs firmware microcode 0xBA -- from the
+2018 window, before the revision that flushes L1D on enclave exit -- with the
+in-tree SGX disabled (no flexible launch control) and no TSX. CPUID leaf 7,
+subleaf 0: HLE is EBX[4] and RTM is EBX[11], both 0; RTM_ALWAYS_ABORT is
+EDX[11], also 0. /proc/cpuinfo has neither rtm nor hle. On top of that sits a
+current userland: Kali, kernel 7.1.5, stock Intel PSW 2.27.
+
+Foreshadow (Van Bulck et al., USENIX Security 2018) is old news and patched in
+the field, so this was never about a new bug. It was a challenge: take the 2018
+recipe to a machine that has *none* of its conveniences -- no TSX for fault
+suppression, no patched SGX runtime, an L1D geometry the classic oracle doesn't
+like -- and see how far the attack still goes, and whether the problem wants a
+different approach. Both halves reproduce (64/64 secret bytes from L1D; the
+SSA/GPRSGX register frame). Along the way two results were genuinely new to us,
+and neither is in the paper.
+
+Getting a warm leak without TSX or rebuilding the runtime
+----------------------------------------------------------
+
+Two substitutions carry the whole thing. Fault suppression: instead of wrapping
+the faulting load in a TSX transaction, we take the #PF as a SIGSEGV and have
+the handler redirect RIP past the load (SA_SIGINFO, si_addr discrimination). And
+to get a *warm* SSA read we need the AEP callback to run in CPL3 with the SSA
+still in L1D -- which normally needs the patched runtime's sgx_set_aep. The
+stock urts doesn't export it, but its default async-exit handler is a unique
+"ENCLU; ud2" (0f 01 d7 0f 0b) in libsgx_urts.so. We overwrite that at load time
+with "movabs $trampoline, %rax; jmp *%rax" (rax is dead there) and every AEX now
+lands in SGX-Step's trampoline. No runtime rebuild. That, plus triggering the
+AEX from the APIC timer (not a #PF, which would route through the kernel and
+evict the SSA first) and never touching the page tables in the hot path, is what
+makes the register frame readable transiently.
+
+Surprise #1: the misprediction gadgets we tried gave no L1TF signal
+---------------------------------------------------------------------
+
+The obvious "cleaner" idea is to drop the fault entirely: read the secret under
+a mispredicted branch (Spectre-v1 style), so there's no #PF, no signal, no
+sigreturn between the transient touch and the reload. We built the Kocher gadget
+faithfully and pointed it at the *same* physical page through a real non-present
+alias, comparing the fault path against the mispredicted path.
+
+  fault path      : target class hot at ~55 cycles  (forwards)
+  mispredict path : same class at ~303 cycles       (stone cold, no forward)
+
+We observed no recoverable L1TF signal with the tested misprediction gadgets on
+this i3-6100, while the fault-and-skip path produced one (target class ~55 cycles
+versus ~303). The gadget itself is fine on a present, architectural target
+(256/256). Foreshadow §3.2 proposes a mispredicted branch as an alternative to
+TSX for suppressing the fault. That alternative did not yield a recoverable
+signal in the variants we built. This bounds those gadgets on this part. It is
+not a proof that no misprediction-based L1TF gadget can work on Skylake. The
+reproduction on this CPU therefore uses the fault + skip handler.
+
+Surprise #2: the residual error is a function of the value, not the position
+----------------------------------------------------------------------------
+
+A single run is often one register short of 12/12. That is not the same as one
+or two wrong bytes: the run cited in STATUS was 11/12 registers and 88/96 known
+bytes, with r15 wrong in all eight. A clean 12/12, 96/96 also occurs. The
+original PoC hides the short runs with RETRIES=N. We instead dumped the raw
+per-byte vote vectors over 30 runs and looked at what actually misses.
+
+The byte value 0x12 appears in three different SSA cache lines (in rsi, r12 and
+rip, i.e. L1D sets 61, 62 and 63). Its 30-run failure bitmap is *bit-identical*
+in all three -- Hamming distance 0. It fails in the same runs no matter which
+line it sits in. That rules out per-byte noise and rules out "the SSA line got
+evicted." It is also not an oracle-slot-vs-SSA-line set collision shuffled by
+ASLR: the oracle is page-aligned in every run (the L1D set index is just VA bits
+[11:6] = the page offset, which ASLR never moves), and the failing values' oracle
+slots sit in sets 0-30, never the SSA read sets 61-63.
+
+What's left fits that dataset: each byte *value* has its own decode margin
+(in those 30 runs 0x15 was the weakest, then 0x12/0x14/0x13/0x11), and a per-run
+global quality factor (AEX count, scheduling, thermal/timing jitter) decides how
+many marginal values tip over that run. Over the 30 runs the per-run miss count
+ranged 0..32, with seven clean runs. Repeated measurement doesn't fix a geometry
+bug -- there isn't one the vote is papering over -- it averages that global gate.
+
+To be sure this wasn't just position (0x12 aside, r15's 0x15 lives only at the very
+end of the frame, so value and position are confounded there), we ran the obvious
+control: swap the values around in the victim -- r15<-0x10, r10<-0x15, rax<-0x15 --
+rebuild the enclave, re-collect. The fragility followed the value: the last-line
+slot (now holding 0x10) recovered from 21/30 to 27/30, while rax and r10, rock-solid
+before, went marginal the moment they carried 0x15. So it is the value, not the
+position; r15 was never a "boundary" artifact. In that collection the weak values
+clustered at low-six-bit classes 0x11-0x15. 0x10 read hot in 23/24 traces of a
+raw-latency control. 0x00 is not the same kind of evidence: an empty lo histogram
+argmax-defaults to class 0, so a true 0x00 can look recovered with no hot slot.
+
+A correct trace has one slot at ~50 cycles and the rest at ~265. Failed traces
+showed no distinguishable hot slot at reload time: the true class was cold
+(~268) like the others, and the argmin was another cold slot a few cycles faster
+by noise. That does not separate a deposit that never happened from one evicted
+before the reload. On a page-aligned oracle, class = value & 0x3f is also the
+L1D set, so one reading of that run was that sets 17-21 are less reliable.
+
+We tested that reading. Shifting the lo oracle by 0x400, so class 21 lands in set
+37 instead of set 21, did not make 0x15 the thing that moves: r15 was 15/15 on
+both arms. The shift does move which *other* classes are fragile, but the
+single-run 12/12 rate (3/15 unshifted, 7/15 shifted) is not a significant
+difference. A second base in the same transient window collapses the lo channel:
+both bases look hot on different classes (4412 of 4416 traces) and the decoder
+locks onto one noise class (0x27). Two separate AEXes, counting a vote only when
+both argmins agree, stays healthy (2749/2944, about 93%) but does not beat the
+plain oracle on the same boot -- that control run was a clean 12/12, 96/96, and
+the dual run was 11/12, 94/96. A second base is not the fix.
+
+The reliable 12/12 uses the same repeated-measurement idea as the memory leak,
+but it is not a vote over values. For each byte offset separately, 30 runs pool
+the low-six-bit class votes and the high-two-bit class votes, and the decode is
+the most common class of each. That recovered 153/153 offsets whose ground truth
+stayed constant (all 12 register canaries included). The remaining 31 bytes have
+a truth that genuinely varies per run --
+the low bits of RFLAGS, the ASLR/AEX-dependent high bytes of RIP and the
+untrusted RSP, and the reserved area -- and we exclude them, because voting on a
+moving target just manufactures fake misses.
+
+Scope, honestly
+---------------
+
+None of this is a new vulnerability. It's a reproduction on deliberately
+unpatched microcode, leaking known canaries and a live RIP/RSP off a debug
+enclave; it does not touch a patched, production deployment. The two surprises
+are characterisations of the channel that the 2018 TSX-based setup did not have
+to surface. RETRIES=N averages the value-keyed residual away. The misprediction
+result is only the negative we measured on this i3-6100.
+
+The harness, the vote-dump format, and the commands that reproduce this are in
+REPRODUCE.md in this tree. The value-correlation could look quite different on a
+CPU with a different L1D or a working TSX.
