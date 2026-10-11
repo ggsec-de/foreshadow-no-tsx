@@ -1,3 +1,8 @@
+<!--
+GGSEC modifications and additions:
+Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+-->
+
 # `libsgxstep/foreshadow.c`: stray semicolon makes `FORESHADOW_ZERO_RETRIES` a no-op
 
 ## Summary

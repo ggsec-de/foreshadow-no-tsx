@@ -1,4 +1,8 @@
 /*
+ * GGSEC modifications and additions:
+ * Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+ */
+/*
  *  Decisive probe: does an L1TF read forward under BRANCH MISPREDICTION (no
  *  fault) on this i3-6100, the way it does under the fault+skip path?
  *

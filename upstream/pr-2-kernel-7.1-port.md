@@ -1,3 +1,8 @@
+<!--
+GGSEC modifications and additions:
+Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+-->
+
 # `kernel`: build and load `/dev/sgx-step` on Linux 7.1.x
 
 Two small changes are needed for the out-of-tree module on `7.1.5+kali-amd64`

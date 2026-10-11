@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
 """Summarise Phase-0 dumps: per-run 12/12-ish scores from logs, lo-vote
 on the true class for the 12 canary GPRs, rawlat hotness."""
 import glob

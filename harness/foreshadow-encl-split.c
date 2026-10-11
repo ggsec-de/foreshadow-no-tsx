@@ -1,4 +1,8 @@
 /*
+ * GGSEC modifications and additions:
+ * Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+ */
+/*
  *  Foreshadow/L1TF on a REAL enclave, with the leaktest-proven measurement.
  *
  *  Deliverable (b). This is the upstream app/foreshadow attack (EENTER, real

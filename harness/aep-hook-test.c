@@ -1,4 +1,8 @@
 /*
+ * GGSEC modifications and additions:
+ * Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+ */
+/*
  *  B.1 milestone 1: enable SGX-Step's AEP callback on the STOCK PSW 2.27 runtime
  *  by binary-hooking the untrusted runtime's async-exit-pointer at runtime.
  *

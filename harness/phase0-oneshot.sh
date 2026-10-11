@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
 # One-shot baseline after a rebuild. No RAW_LAT, no ORACLE_LO_OFF.
 #   sudo bash /home/detox/CPU/labs/foreshadow/harness/phase0-oneshot.sh
 # Expect historical-ish: [TRANSIENT-WARM] 11/12 (or 12/12), ~80+/96 bytes.

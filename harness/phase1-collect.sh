@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
 # Phase 1 interleaved collect. Only after phase1-oneshot.sh is not 0/12.
 #   sudo bash /home/detox/CPU/labs/foreshadow/harness/phase1-collect.sh
 # No RAW_LAT. Fresh outdir (do not reuse /tmp/ssawarm-votes-shift).

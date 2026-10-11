@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# GGSEC modifications and additions:
+# Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
 #
 # Port the legacy Intel SGX driver (isgx, the v2.14 revision pinned by SGX-Step
 # as kernel/linux-sgx-driver) to the running Kali kernel.

@@ -1,4 +1,8 @@
 /*
+ * GGSEC modifications and additions:
+ * Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+ */
+/*
  *  Enclave-free reconstruction of the Foreshadow/L1TF PoC.
  *
  *  Mirrors the SIM_ENCLAVE=1 path of the upstream sgx-step PoC

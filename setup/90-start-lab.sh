@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
 #
 # Bring the SGX lab back up after a reboot -- ONE command:
 #

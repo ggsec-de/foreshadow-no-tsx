@@ -1,3 +1,8 @@
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+-->
+
 # Reproduce -- Foreshadow/L1TF on a real SGX enclave, from reboot to 64/64
 
 One linear path on the lab host `.86` (Detox-01: Kali, kernel 7.1.5+kali-amd64,

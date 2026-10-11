@@ -1,3 +1,8 @@
+<!--
+GGSEC modifications and additions:
+Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+-->
+
 # `app/foreshadow-sim`: enclave-free Foreshadow/L1TF PoC (no SDK required)
 
 ## Motivation

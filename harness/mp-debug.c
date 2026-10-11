@@ -1,3 +1,7 @@
+/*
+ * GGSEC modifications and additions:
+ * Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+ */
 /* Debug: does the gate-based misprediction actually touch the oracle?
  * Prints the per-class reload latency for a known secret (class 42) under:
  *   (1) architectural attack  (gate=0, branch really taken)   -- controls decode/oracle

@@ -1,4 +1,8 @@
 /*
+ * GGSEC modifications and additions:
+ * Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+ */
+/*
  *  Decisive experiment: was the recovered byte read *transiently*?
  *
  *  The reproduction in harness/main.c recovers the secret (64/64), but its

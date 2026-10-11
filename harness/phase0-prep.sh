@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
 # Phase 0 prep on .86: verify scp landed, install into live app, rebuild, selftest.
 set -euo pipefail
 H=$HOME/CPU/labs/foreshadow/harness

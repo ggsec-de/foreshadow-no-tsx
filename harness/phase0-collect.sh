@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
 # Phase 0 interleaved A/B collect. Run as root:
 #   sudo bash /home/detox/CPU/labs/foreshadow/harness/phase0-collect.sh
 # Do NOT use sudo -E; paths are hardcoded because sudo resets $HOME to /root.

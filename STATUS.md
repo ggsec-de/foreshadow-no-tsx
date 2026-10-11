@@ -1,3 +1,8 @@
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+-->
+
 # Foreshadow (L1TF) PoC on host `.86` — status
 
 *Last updated: 2026-09-21. Written so that whoever picks this up next does not

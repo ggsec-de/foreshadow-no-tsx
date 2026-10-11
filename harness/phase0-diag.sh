@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
 set -euo pipefail
 A0=/tmp/ssawarm-votes-shift/ORACLE_LO_OFF=0
 A4=/tmp/ssawarm-votes-shift/ORACLE_LO_OFF=0x400

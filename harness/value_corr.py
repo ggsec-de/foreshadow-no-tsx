@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
 """Adjudicate the value-vs-line hypothesis on existing VOTE_DUMP runs.
 
 Tests, root-free, on the 30 dumps we already have:

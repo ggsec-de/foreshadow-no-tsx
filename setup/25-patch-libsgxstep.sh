@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# GGSEC modifications and additions:
+# Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
 #
 # Foreshadow / SGX-Step lab -- bound the retry loop in libsgxstep/transient.S.
 #

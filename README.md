@@ -1,3 +1,8 @@
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+-->
+
 # Foreshadow (L1TF) PoC -- lab reconstruction on `.86`
 
 Goal: rebuild the upstream SGX-Step Foreshadow PoC on the lab host
@@ -896,3 +901,10 @@ Reproduce (root-free, on existing dumps):
 ```bash
 cd /tmp/ssawarm-votes && python3 ~/CPU/labs/foreshadow/harness/value_corr.py run*.votes
 ```
+
+
+## Licensing and copyright
+
+Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+
+Licensing is file-specific. See [LICENSE_SCOPE.md](LICENSE_SCOPE.md) and [LICENSE](LICENSE); upstream code and notices retain their existing terms.

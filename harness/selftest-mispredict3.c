@@ -1,4 +1,8 @@
 /*
+ * GGSEC modifications and additions:
+ * Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+ */
+/*
  *  Offline test of the ONE leg no other self-test touched: speculative read of a
  *  FAULTING page under branch misprediction, with forwarding of its L1-resident
  *  data -- root-free, no SGX. Settles two things at once (colleague #2's test 3):

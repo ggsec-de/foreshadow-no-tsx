@@ -1,4 +1,8 @@
 /*
+ * GGSEC modifications and additions:
+ * Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+ */
+/*
  *  Offline prototype of the branch-misprediction leak gadget -- NO SGX, NO fault,
  *  NO SIGSEGV handler, NO root.
  *

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
 """Cross-run statistics for foreshadow-ssa-warm VOTE_DUMP files.
 
 Collector mode -- run the harness N times, then aggregate:

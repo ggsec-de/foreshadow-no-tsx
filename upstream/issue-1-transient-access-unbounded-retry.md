@@ -1,3 +1,8 @@
+<!--
+GGSEC modifications and additions:
+Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+-->
+
 # `transient_access()` can spin forever when the measured byte is `0x00`
 
 ## Summary

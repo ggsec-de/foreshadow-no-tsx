@@ -1,4 +1,8 @@
 /*
+ * GGSEC modifications and additions:
+ * Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+ */
+/*
  *  Gate-based branch-misprediction leak gadget (non-TSX Foreshadow variant),
  *  Kocher bounds-check-bypass form -- the shape validated at 256/256 in
  *  selftest-mispredict.c. Shared verbatim by the offline validator

@@ -1,3 +1,8 @@
+<!--
+GGSEC modifications and additions:
+Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+-->
+
 # Upstream submission pack -- jovanbulck/sgx-step
 
 Ready-to-post material for reporting the two defects found while reproducing

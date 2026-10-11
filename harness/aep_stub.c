@@ -1,4 +1,8 @@
 /*
+ * GGSEC modifications and additions:
+ * Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+ */
+/*
  * Link stubs for SGX-Step's patched untrusted runtime.
  *
  * libsgxstep/enclave.c declares and calls three helpers that only exist in

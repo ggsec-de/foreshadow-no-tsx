@@ -1,4 +1,8 @@
 /*
+ * GGSEC modifications and additions:
+ * Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+ */
+/*
  *  Offline validation of the SHARED Kocher misprediction gadget
  *  (mispredict_gadget.h) -- the exact leak that will run live in
  *  foreshadow-ssa-warm.c, only here the target byte is PRESENT (no L1TF, no SGX,

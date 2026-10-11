@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
 # After a reboot: lab up, prefetchers off, one control shot and one dual-base shot.
 #   sudo bash /home/detox/CPU/labs/foreshadow/harness/phase1-oneshot.sh
 # Control should look like historical ~10-12/12. Dual is the new path.

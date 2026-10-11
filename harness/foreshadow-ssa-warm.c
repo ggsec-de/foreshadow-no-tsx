@@ -1,4 +1,8 @@
 /*
+ * GGSEC modifications and additions:
+ * Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+ */
+/*
  *  B.1: Foreshadow SSA/GPRSGX register leak with a WARM transient read, on the
  *  stock PSW 2.27 runtime (no TSX), via a binary-hooked AEP callback.
  *

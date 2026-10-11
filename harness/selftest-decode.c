@@ -1,4 +1,8 @@
 /*
+ * GGSEC modifications and additions:
+ * Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+ */
+/*
  *  Offline decoder self-test for the split lo/hi oracle used by
  *  foreshadow-ssa-warm.c -- NO SGX, NO enclave, NO AEX, NO root.
  *

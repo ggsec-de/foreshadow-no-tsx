@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
 """Phase-0 arm comparison on canary GPRs. Ignores stale rawlat."""
 import glob, os, time
 

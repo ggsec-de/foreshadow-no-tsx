@@ -1,4 +1,8 @@
 /*
+ * GGSEC modifications and additions:
+ * Copyright (C) 2026 Maciej Gojny, GG Advanced IT Security UG
+ */
+/*
  *  Foreshadow/L1TF SSA (GPRSGX) register-state dump on a real enclave, WITHOUT
  *  TSX -- for the i3-6100 lab host (microcode 0xba, no RTM).
  *
